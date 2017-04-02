@@ -4,13 +4,12 @@ namespace PacknGo.Utils
 {
     public class Database
     {
-		MongoClient _client;
-		MongoServer _server;
+	    private readonly MongoServer _server;
 
 		public Database()
 		{
-			_client = new MongoClient(Constants.DatabaseEndpoint);
-			_server = _client.GetServer();
+			var client = new MongoClient(Constants.DatabaseEndpoint);
+			_server = client.GetServer();
 		}
 
 		public MongoDatabase GetDatabase()

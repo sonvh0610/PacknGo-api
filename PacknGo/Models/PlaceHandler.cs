@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Http;
 using MongoDB.Bson;
 using MongoDB.Driver.Linq;
 using MongoDB.Driver.Builders;
+using Newtonsoft.Json.Linq;
 
 namespace PacknGo.Models
 {
@@ -22,17 +23,16 @@ namespace PacknGo.Models
 			_coll = db.GetCollection<Place>("Place");
 		}
 
-		public Dictionary<string, object> GetNearestPlace(IHeaderDictionary header)
+		public JObject GetNearestPlace(IHeaderDictionary header)
 		{
 			try
 			{
 				string accessToken = header["AccessToken"];
 				double lat = double.Parse(header["Latitude"]);
 				double lng = double.Parse(header["Longitude"]);
-				double meter = double.Parse(header["Meter"]);
-				int pageIdx = int.Parse(header["Index"]);
+				double distance = double.Parse(header["Distance"]);
 
-				JWT.Decode(accessToken, Encoding.ASCII.GetBytes(Constants.Secret), JwsAlgorithm.HS256);
+				JWT.Decode(accessToken, Constants.Secret, JwsAlgorithm.HS256);
 
 				Location from = new Location() {Latitude = lat, Longitude = lng};
 				List<Place> places = _coll
@@ -40,10 +40,8 @@ namespace PacknGo.Models
 					.ToList();
 
 				places = places
-					.Where(p => Helper.Measure(from, p.Location) <= meter)
+					.Where(p => Helper.Measure(from, p.Location) <= distance)
 					.OrderByDescending(p => Helper.Measure(from, p.Location))
-					.Skip(Constants.PlaceLimit * pageIdx)
-					.Take(Constants.PlaceLimit)
 					.ToList();
 
 				return places.Count > 0 ? Response.ResponseOK(places) : Response.ResponseError(404, "place_not_found");
@@ -52,42 +50,29 @@ namespace PacknGo.Models
 			{
 				return Response.ResponseError(500, "request_timeout");
 			}
-			catch (ArgumentException)
+			catch (Exception ex)
 			{
-				return Response.ResponseError(401, "missing_arguments");
-			}
-			catch (FormatException)
-			{
-				return Response.ResponseError(401, "invalid_arguments");
-			}
-			catch (IntegrityException)
-			{
-				return Response.ResponseError(401, "invalid_access_token");
+				return Response.ResponseError(401, ex.Message);
 			}
 		}
 
-	    public Dictionary<string, object> GetPlaceById(IHeaderDictionary header, string id)
+	    public JObject GetPlaceById(IHeaderDictionary header, string id)
 	    {
 		    try
 		    {
 				string accessToken = header["AccessToken"];
-				JWT.Decode(accessToken, Encoding.ASCII.GetBytes(Constants.Secret), JwsAlgorithm.HS256);
+				JWT.Decode(accessToken, Constants.Secret, JwsAlgorithm.HS256);
 				if (id == null) throw new ArgumentNullException();
 			    Place place = _coll.FindOne(Query<Place>.EQ(p => p.Id, id));
-			    var response = Helper.ConvertClassToDictionary(place);
-				return (place != null) ? Response.ResponseOK(response) : Response.ResponseError(404, "place_not_found");
+				return (place != null) ? Response.ResponseOK(place) : Response.ResponseError(404, "place_not_found");
 			}
 			catch (TimeoutException)
 			{
 				return Response.ResponseError(500, "request_timeout");
 			}
-			catch (ArgumentException)
+			catch (Exception ex)
 			{
-				return Response.ResponseError(401, "missing_arguments");
-			}
-			catch (IntegrityException)
-			{
-				return Response.ResponseError(401, "invalid_access_token");
+				return Response.ResponseError(401, ex.Message);
 			}
 		}
 	}

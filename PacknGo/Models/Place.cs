@@ -1,4 +1,5 @@
-﻿using MongoDB.Bson;
+﻿using System.Collections.Generic;
+using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
 
 namespace PacknGo.Models
@@ -21,6 +22,18 @@ namespace PacknGo.Models
 
 		[BsonElement("Infomation")]
 		public string Infomation { get; set; }
+
+		[BsonElement("Category")]
+		public List<string> Category { get; set; }
+
+		[BsonElement("Type")]
+		public int Type { get; set; }
+
+		[BsonElement("Image")]
+		public List<string> Image { get; set; }
+
+		[BsonElement("Address")]
+		public string Address { get; set; }
     }
 
 	public class Location

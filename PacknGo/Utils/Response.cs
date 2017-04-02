@@ -1,26 +1,27 @@
 ﻿using System.Collections.Generic;
+using Newtonsoft.Json.Linq;
 
 namespace PacknGo.Utils
 {
     public class Response
     {
-	    public static Dictionary<string, object> ResponseOK(object data)
+	    public static JObject ResponseOK(object data)
 	    {
-			return new Dictionary<string, object>()
+			return JObject.FromObject(new
 			{
-				{"successful", true},
-				{"data", data}
-			};
+				successful = true,
+				data = data
+			});
 		}
 
-	    public static Dictionary<string, object> ResponseError(int errorCode, string errorDescription)
+	    public static JObject ResponseError(int errorCode, string errorDescription)
 	    {
-			return new Dictionary<string, object>()
+			return JObject.FromObject(new
 			{
-				{"successful", false},
-				{"errorCode", errorCode},
-				{"errorDescription", errorDescription}
-			};
+				successful = false,
+				errorCode = errorCode,
+				errorDescription = errorDescription
+			});
 		}
     }
 }

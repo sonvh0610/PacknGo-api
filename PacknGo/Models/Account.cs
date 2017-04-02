@@ -5,7 +5,8 @@ namespace PacknGo.Models
 {
     public class Account
     {
-		public ObjectId Id { get; set; }
+		[BsonRepresentation(BsonType.ObjectId)]
+		public string Id { get; set; }
 
 		[BsonElement("Email")]
 		public string Email { get; set; }
@@ -21,5 +22,11 @@ namespace PacknGo.Models
 
 		[BsonElement("RegisterDate")]
 		public string RegisterDate { get; set; }
+
+		[BsonElement("Level")]
+		public int Level { get; set; }
+
+		[BsonElement("Score")]
+		public int Score { get; set; }
     }
 }

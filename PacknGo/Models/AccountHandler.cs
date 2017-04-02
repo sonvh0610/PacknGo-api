@@ -2,120 +2,152 @@
 using MongoDB.Driver.Builders;
 using System.Security.Cryptography;
 using PacknGo.Utils;
-using System.Text;
 using System.Collections.Generic;
 using Jose;
 using System;
-using System.Linq;
-using MongoDB.Bson;
-using System.Text.RegularExpressions;
+using Newtonsoft.Json.Linq;
 
 namespace PacknGo.Models
 {
     public class AccountHandler
     {
-	    private readonly MongoDatabase _db;
+		private readonly MongoCollection<Account> _coll;
 
 		public AccountHandler()
 		{
-			_db = new Database().GetDatabase();
+			_coll = new Database().GetDatabase().GetCollection<Account>("Account");
 		}
 
-		public Dictionary<string, object> FindUserByEmail(string email, string password)
+		public JObject GetTokenByUser(Dictionary<string, string> body)
 		{
 			try
 			{
+				string email = body["Email"];
+				string password = body["Password"];
+
 				using (MD5 md5Hash = MD5.Create())
 				{
 					var query = Query.And(
 						Query<Account>.EQ(p => p.Email, email),
 						Query<Account>.EQ(p => p.Password, Helper.GetMd5Hash(md5Hash, password))
 					);
-					Account account = _db.GetCollection<Account>("Account").FindOne(query);
+					Account account = _coll.FindOne(query);
 					
 					if (account != null)
 					{
-						Dictionary<string, object> payload = Helper.ConvertClassToDictionary(account);
+						JObject payload = Helper.ConvertClassToJSON(account);
 						payload.Add("exp", Constants.ExpiredTime);
-						string token = JWT.Encode(payload, Encoding.ASCII.GetBytes(Constants.Secret), JwsAlgorithm.HS256);
+						string token = JWT.Encode(payload, Constants.Secret, JwsAlgorithm.HS256);
 
-						return new Dictionary<string, object>()
+						return JObject.FromObject(new
 						{
-							{ "successful", true },
-							{ "accessToken", token },
-							{ "expiredIn", Constants.ExpiredTime }
-						};
+							successful = true,
+							accessToken = token,
+							expiredIn = Constants.ExpiredTime
+						});
 					}
-					else
-					{
-						return new Dictionary<string, object>()
-						{
-							{ "successful", false },
-							{ "errorCode", 404 },
-							{ "errorDescription", "invalid_email_or_password" }
-						};
-					}
+
+					return Response.ResponseError(404, "invalid_email_or_password");
 				}
 			}
 			catch (TimeoutException)
 			{
-				return new Dictionary<string, object>()
-				{
-					{ "successful", false },
-					{ "errorCode", 500 },
-					{ "errorDescription", "request_timeout" }
-				};
-			};
+				return Response.ResponseError(500, "request_timeout");
+			}
+			catch (Exception ex)
+			{
+				return Response.ResponseError(401, ex.Message);
+			}
 		}
 
-		public Dictionary<string, object> GetUserByAccessToken(string accessToken)
+		public JObject GetTokenGuest(Dictionary<string, string> body)
 		{
 			try
 			{
-				string resultCode = JWT.Decode(accessToken, Encoding.ASCII.GetBytes(Constants.Secret), JwsAlgorithm.HS256);
-				Regex pattern = new Regex("[\\{\\}\"]");
-				resultCode = pattern.Replace(resultCode, string.Empty);
+				string deviceId = body["DeviceId"];
+				string deviceOs = body["DeviceOs"];
 
-				var dict = resultCode.Split(',')
-					.Select(part => part.Split(':'))
-					.ToDictionary(split => split[0], split => split[1]);
-
-				Account account = new Account();
-				account.Id = new ObjectId(dict["Id"]);
-				account.Name = dict["Name"];
-				account.Email = dict["Email"];
-				account.Password = dict["Password"];
-				account.Avatar = (dict["Avatar"] == "null") ? null : dict["Avatar"];
-				account.RegisterDate = dict["RegisterDate"];
-
-				var dictAccount = Helper.ConvertClassToDictionary(account);
-				dictAccount.Remove("Password");
-
-				var result = new Dictionary<string, object>()
+				JObject json = JObject.FromObject(new
 				{
-					{"successful", true},
-					{"data", dictAccount}
-				};
+					DeviceId = deviceId,
+					DeviceOs = deviceOs,
+					exp = Constants.ExpiredTime
+				});
+				string token = JWT.Encode(json, Constants.Secret, JwsAlgorithm.HS256);
 
-				return result;
+				return JObject.FromObject(new
+				{
+					successful = true,
+					accessToken = token,
+					expiredIn = Constants.ExpiredTime
+				});
 			}
-			catch (IntegrityException)
+			catch (Exception ex)
 			{
-				return new Dictionary<string, object>()
-				{
-					{"successful", false},
-					{"errorCode", 401},
-					{"errorDescription", "access_token_invalid"}
-				};
+				return Response.ResponseError(401, ex.Message);
 			}
-			catch (ArgumentException)
+		}
+
+		public JObject GetUserByAccessToken(string accessToken)
+		{
+			try
 			{
-				return new Dictionary<string, object>()
+				string json = JWT.Decode(accessToken, Constants.Secret, JwsAlgorithm.HS256);
+				JObject result = JObject.Parse(json);
+				result.Remove("exp");
+
+				if (result["Email"] != null)
 				{
-					{"successful", false},
-					{"errorCode", 401},
-					{"errorDescription", "missing_access_token"}
-				};
+					result.Remove("Password");
+					result.Add("Role", "Member");
+				}
+				else
+				{
+					result.Add("Role", "Guest");
+				}
+
+				return Response.ResponseOK(result);
+			}
+			catch (Exception ex)
+			{
+				return Response.ResponseError(401, ex.Message);
+			}
+		}
+
+	    public Account GetMember(string accessToken)
+	    {
+		    try
+		    {
+			    string json = JWT.Decode(accessToken, Constants.Secret, JwsAlgorithm.HS256);
+			    JObject result = JObject.Parse(json);
+			    Account account = _coll.FindOne(Query<Account>.EQ(p => p.Id, result["Id"].Value<string>()));
+			    return account;
+		    }
+		    catch (Exception ex)
+		    {
+			    throw new Exception(ex.Message);
+		    }
+	    }
+
+	    public bool AddScore(string accessToken, int score)
+	    {
+			try
+			{
+				Account account = this.GetMember(accessToken);
+				if (account.Score + score < 0)
+				{
+					throw new Exception("Not enough");
+				}
+				else
+				{
+					_coll.FindAndModify(Query<Account>.EQ(p => p.Id, account.Id), null, Update.Set("Score", account.Score + score));
+
+					return true;
+				}
+			}
+			catch (Exception ex)
+			{
+				throw new Exception(ex.Message);
 			}
 		}
     }

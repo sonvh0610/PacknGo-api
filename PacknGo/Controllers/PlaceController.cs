@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Microsoft.AspNetCore.Mvc;
+using Newtonsoft.Json.Linq;
 using PacknGo.Models;
 
 namespace PacknGo.Controllers
@@ -18,8 +19,8 @@ namespace PacknGo.Controllers
 	    [HttpGet("nearme")]
 	    public IActionResult Get()
 	    {
-			Dictionary<string, object> result = _handler.GetNearestPlace(HttpContext.Request.Headers);
-			if (result.ContainsKey("errorCode"))
+			JObject result = _handler.GetNearestPlace(HttpContext.Request.Headers);
+			if (result["errorCode"] != null)
 			{
 				HttpContext.Response.StatusCode = (int) result["errorCode"];
 			}
@@ -29,8 +30,8 @@ namespace PacknGo.Controllers
 	    [HttpGet("{id}")]
 	    public IActionResult Get(string id)
 	    {
-			Dictionary<string, object> result = _handler.GetPlaceById(HttpContext.Request.Headers, id);
-			if (result.ContainsKey("errorCode"))
+			JObject result = _handler.GetPlaceById(HttpContext.Request.Headers, id);
+			if (result["errorCode"] != null)
 			{
 				HttpContext.Response.StatusCode = (int)result["errorCode"];
 			}

@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
+using Newtonsoft.Json.Linq;
 
 namespace PacknGo.Utils
 {
@@ -28,23 +29,22 @@ namespace PacknGo.Utils
 			return (0 == comparer.Compare(hashOfInput, hash));
 		}
 
-		public static Dictionary<string, object> ConvertClassToDictionary<T>(T target)
+		public static JObject ConvertClassToJSON<T>(T target)
 		{
 			PropertyInfo[] infos = target.GetType().GetProperties();
-			Dictionary<string, object> dict = new Dictionary<string, object>();
+			JObject json = new JObject();
 			foreach (PropertyInfo info in infos)
 			{
 				try
 				{
-					dict.Add(info.Name, info.GetValue(target, null).ToString());
+					json.Add(info.Name, info.GetValue(target, null).ToString());
 				}
 				catch (NullReferenceException)
 				{
-					dict.Add(info.Name, null);
+					json.Add(info.Name, null);
 				}
 			}
-
-			return dict;
+			return json;
 		}
 
 		public static double Measure(Location from, Location to)
